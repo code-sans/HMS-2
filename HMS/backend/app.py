@@ -50,7 +50,8 @@ def create_app(config: dict = None):
     # Register routes (relative imports so module works when run as package)
     # Register auth blueprint (new auth implementation)
     from .routes.auth import auth_bp
-    from .routes.doctor_routes import doctor_bp
+    # Use new doctor blueprint for doctor-facing APIs
+    from .routes.doctor import doctor_bp
     from .routes.patient_routes import patient_bp
     from .routes.appointment_routes import appointment_bp
     from .routes.admin import admin_bp
