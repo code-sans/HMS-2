@@ -53,11 +53,13 @@ def create_app(config: dict = None):
     from .routes.doctor_routes import doctor_bp
     from .routes.patient_routes import patient_bp
     from .routes.appointment_routes import appointment_bp
+    from .routes.admin import admin_bp
 
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(doctor_bp, url_prefix="/doctor")
     app.register_blueprint(patient_bp, url_prefix="/patient")
     app.register_blueprint(appointment_bp, url_prefix="/appointment")
+    app.register_blueprint(admin_bp, url_prefix="/admin")
 
     return app
 

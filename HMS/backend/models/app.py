@@ -186,6 +186,7 @@ class Doctor(TimestampMixin, db.Model):
 
     user = db.relationship("User", back_populates="doctor_profile")
     specialization = db.relationship("Specialization", back_populates="doctors")
+    contact = db.Column(db.String(20), nullable=True)
 
     appointments = db.relationship(
         "Appointment",
