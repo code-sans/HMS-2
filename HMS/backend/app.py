@@ -52,7 +52,7 @@ def create_app(config: dict = None):
     from .routes.auth import auth_bp
     # Use new doctor blueprint for doctor-facing APIs
     from .routes.doctor import doctor_bp
-    from .routes.patient_routes import patient_bp
+    from .routes.patient import patient_bp
     from .routes.appointment_routes import appointment_bp
     from .routes.admin import admin_bp
 
