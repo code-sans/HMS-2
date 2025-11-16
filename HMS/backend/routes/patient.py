@@ -286,3 +286,25 @@ def update_profile():
         return jsonify({"success": True, "msg": "Profile updated"})
     else:
         return jsonify({"success": False, "msg": "No valid fields provided"}), 400
+
+
+@patient_bp.route("/export/history", methods=["POST"])
+@patient_required
+def trigger_export():
+    """Trigger async CSV export of patient history via Celery and return job info."""
+    from celery_app import celery
+    from HMS.backend.tasks.export_csv import export_patient_history
+    from flask_jwt_extended import get_jwt_identity
+
+    user_id = get_jwt_identity()
+    patient = Patient.query.filter_by(user_id=user_id).first()
+    if not patient:
+        return jsonify({"success": False, "msg": "Patient profile not found"}), 404
+
+    data = request.get_json() or {}
+    notify_email = data.get("notify_email")
+
+    # Enqueue task
+    task = export_patient_history.apply_async(args=(patient.id, notify_email))
+
+    return jsonify({"success": True, "msg": "Export started", "task_id": task.id}), 202
