@@ -53,7 +53,7 @@ def create_app(config: dict = None):
     # Use new doctor blueprint for doctor-facing APIs
     from .routes.doctor import doctor_bp
     from .routes.patient import patient_bp
-    from .routes.appointment_routes import appointment_bp
+    from .routes.appointment import appointment_bp
     from .routes.admin import admin_bp
 
     app.register_blueprint(auth_bp, url_prefix="/auth")

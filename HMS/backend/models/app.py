@@ -346,3 +346,86 @@ class Treatment(TimestampMixin, db.Model):
 
     def __repr__(self):
         return f"<Treatment {self.id} for Appointment {self.appointment_id}>"
+
+
+# -----------------------------
+# Helper functions for appointments
+# -----------------------------
+def is_slot_available(doctor_id, date_obj, time_obj, appointment_id=None):
+    """Return True if the doctor has no appointment at the given date/time.
+
+    If appointment_id is provided, exclude that appointment (useful for rescheduling).
+    """
+    q = Appointment.query.filter_by(doctor_id=doctor_id, date=date_obj, time=time_obj)
+    if appointment_id:
+        q = q.filter(Appointment.id != appointment_id)
+    return q.first() is None
+
+
+def update_appointment_status(appointment_id, new_status):
+    """Validate and update appointment status according to allowed transitions.
+
+    Raises ValueError on invalid transitions or missing Treatment when marking Completed.
+    Returns the updated Appointment object on success.
+    """
+    appt = Appointment.query.get(appointment_id)
+    if not appt:
+        raise ValueError("Appointment not found")
+
+    # normalize new_status into AppointmentStatus
+    if isinstance(new_status, AppointmentStatus):
+        new_enum = new_status
+    else:
+        try:
+            new_enum = AppointmentStatus(new_status)
+        except Exception:
+            try:
+                new_enum = AppointmentStatus[new_status.upper()]
+            except Exception:
+                raise ValueError("Invalid status")
+
+    cur = appt.status
+    if cur == AppointmentStatus.BOOKED:
+        if new_enum in (AppointmentStatus.COMPLETED, AppointmentStatus.CANCELLED):
+            if new_enum == AppointmentStatus.COMPLETED and not appt.treatment:
+                raise ValueError("Cannot mark Completed without existing Treatment record")
+            appt.status = new_enum
+            db.session.commit()
+            return appt
+        else:
+            raise ValueError("Invalid transition from Booked")
+    elif cur in (AppointmentStatus.COMPLETED, AppointmentStatus.CANCELLED):
+        raise ValueError("Cannot change status once Completed or Cancelled")
+    else:
+        raise ValueError("Unknown current status")
+
+
+def serialize_appointment(appt):
+    """Return standardized JSON shape for an Appointment."""
+    treatment = None
+    if appt.treatment:
+        treatment = {
+            "diagnosis": appt.treatment.diagnosis,
+            "prescription": appt.treatment.prescription,
+            "notes": appt.treatment.notes,
+        }
+
+    doctor_spec = None
+    if appt.doctor and appt.doctor.specialization:
+        doctor_spec = appt.doctor.specialization.name
+
+    return {
+        "id": appt.id,
+        "patient": {"id": appt.patient.id, "name": appt.patient.name} if appt.patient else None,
+        "doctor": {
+            "id": appt.doctor.id,
+            "name": appt.doctor.name,
+            "specialization": doctor_spec,
+        }
+        if appt.doctor
+        else None,
+        "date": appt.date.isoformat() if appt.date else None,
+        "time": appt.time.isoformat() if appt.time else None,
+        "status": appt.status.name if appt.status else None,
+        "treatment": treatment,
+    }
