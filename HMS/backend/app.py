@@ -27,11 +27,22 @@ def create_app(config: dict = None):
     # JWT configuration
     app.config.setdefault("JWT_SECRET_KEY", "change-this-secret")
     app.config.setdefault("JWT_ACCESS_TOKEN_EXPIRES", False)  # tokens won't expire for now (adjust in prod)
+    # Redis cache configuration (used by backend/cache.py)
+    app.config.setdefault("REDIS_HOST", "127.0.0.1")
+    app.config.setdefault("REDIS_PORT", 6379)
+    app.config.setdefault("REDIS_DB", 0)
 
     # Init extensions
     db.init_app(app)
     login_manager.init_app(app)
     jwt.init_app(app)
+
+    # Import cache module so Redis client can be initialized lazily using app config.
+    try:
+        from . import cache  # noqa: F401 - module side-effects
+    except Exception:
+        # don't fail app init if cache import has issues; caching is best-effort
+        pass
 
     # Flask-Login user loader
     @login_manager.user_loader

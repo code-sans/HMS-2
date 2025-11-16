@@ -4,6 +4,7 @@ from datetime import datetime, date
 from sqlalchemy import or_
 
 from .. import db
+from ..cache import get_cache, set_cache, delete_cache, invalidate_pattern
 from ..models.app import (
     Department,
     Specialization,
@@ -28,8 +29,16 @@ def _get_current_patient():
 @patient_bp.route("/departments", methods=["GET"])
 @patient_required
 def list_departments():
+    # Cache departments list (24 hours)
+    key = "departments_list"
+    cached = get_cache(key)
+    if cached is not None:
+        return jsonify(cached)
+
     deps = Department.query.all()
     result = [{"id": d.id, "name": d.name} for d in deps]
+    # store as a list (explicit expiration)
+    set_cache(key, result, expiration=86400)
     return jsonify(result)
 
 
@@ -39,7 +48,15 @@ def doctor_availability(doctor_id):
     doctor = Doctor.query.get(doctor_id)
     if not doctor:
         return jsonify({"success": False, "msg": "Doctor not found"}), 404
-    return jsonify({"doctor": doctor.name, "availability": doctor.availability or {}})
+    key = f"doctor_availability:{doctor_id}"
+    cached = get_cache(key)
+    if cached is not None:
+        return jsonify(cached)
+
+    result = {"doctor": doctor.name, "availability": doctor.availability or {}}
+    # cache for 1 hour
+    set_cache(key, result, expiration=3600)
+    return jsonify(result)
 
 
 @patient_bp.route("/doctors/search", methods=["GET"])
@@ -48,6 +65,12 @@ def search_doctors():
     query = (request.args.get("query") or "").strip()
     if not query:
         return jsonify({"success": True, "doctors": []})
+
+    # use a normalized cache key for the search query
+    key = f"doctor_search:{query.lower()}"
+    cached = get_cache(key)
+    if cached is not None:
+        return jsonify({"success": True, "doctors": cached})
 
     doctors = (
         db.session.query(Doctor)
@@ -71,6 +94,8 @@ def search_doctors():
         }
         for d in doctors
     ]
+    # cache search results for 30 minutes
+    set_cache(key, result, expiration=1800)
     return jsonify({"success": True, "doctors": result})
 
 
@@ -283,6 +308,8 @@ def update_profile():
 
     if changed:
         db.session.commit()
+        # Invalidate admin patient search caches since profile/contact may have changed
+        invalidate_pattern("patient_search:*")
         return jsonify({"success": True, "msg": "Profile updated"})
     else:
         return jsonify({"success": False, "msg": "No valid fields provided"}), 400

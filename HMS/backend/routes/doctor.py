@@ -4,6 +4,7 @@ from datetime import date, timedelta
 from sqlalchemy import func
 
 from .. import db
+from ..cache import delete_cache
 from ..models.app import Doctor, Patient, Appointment, Treatment, AppointmentStatus
 from .auth import doctor_required
 
@@ -187,6 +188,12 @@ def update_availability():
 
     doctor.availability = availability
     db.session.commit()
+    # Invalidate cached availability for this doctor (cached under doctor_availability:<id>)
+    try:
+        delete_cache(f"doctor_availability:{doctor.id}")
+    except Exception:
+        pass
+
     return jsonify({"success": True, "msg": "Availability updated"})
 
 

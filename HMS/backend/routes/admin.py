@@ -14,6 +14,7 @@ from ..models.app import (
     AppointmentStatus,
 )
 from .auth import admin_required
+from ..cache import invalidate_pattern, delete_cache
 
 admin_bp = Blueprint("admin", __name__)
 
@@ -103,6 +104,12 @@ def add_doctor():
     db.session.add(doctor)
     db.session.commit()
 
+    # Invalidate doctor search caches so new doctor appears in search results
+    try:
+        invalidate_pattern("doctor_search:*")
+    except Exception:
+        pass
+
     return (
         jsonify(
             {
@@ -150,6 +157,19 @@ def update_doctor(doctor_id):
         doctor.name = data.get("name")
 
     db.session.commit()
+    # Invalidate doctor search caches to refresh search results after update
+    try:
+        invalidate_pattern("doctor_search:*")
+    except Exception:
+        pass
+
+    # If specialization changed, we may need to refresh cached departments/specializations
+    if "specialization_id" in data:
+        try:
+            delete_cache("departments_list")
+        except Exception:
+            pass
+
     return jsonify({"success": True, "msg": "Doctor updated", "doctor_id": doctor.id})
 
 
